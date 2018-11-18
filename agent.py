@@ -13,6 +13,7 @@ import time
 from random import randint
 from json import loads
 from pprint import pprint
+from subprocess import Popen
 
 #can be useful
 #debug.setLogger(debug.Debug('all'))
@@ -136,8 +137,13 @@ class SNMPAgent(object):
                 
             def setValue(self, value, name, idx):
                 if value == 1:
-                    check_output(["docker" "restart" "$(docker ps -q)"])
-        
+                    for i in range(len(container_info) - 1):
+                        print i
+                        Popen(["curl", "-d", "''", "--unix-socket", "/var/run/docker.sock", "http://localhost/containers/" + docker_informations[i]["Id"] + "/restart"])
+                if hasattr(self.syntax, 'setValue'):
+                    return self.syntax.setValue(value)
+                else:
+                    return self.syntax.clone(value)
         NamedValues, = mibBuilder.importSymbols("ASN1-ENUMERATION", "NamedValues")
         ConstraintsUnion, SingleValueConstraint, ConstraintsIntersection, ValueSizeConstraint, ValueRangeConstraint = mibBuilder.importSymbols("ASN1-REFINEMENT", "ConstraintsUnion", "SingleValueConstraint", "ConstraintsIntersection", "ValueSizeConstraint", "ValueRangeConstraint")
         NotificationGroup, ModuleCompliance, ObjectGroup = mibBuilder.importSymbols("SNMPv2-CONF", "NotificationGroup", "ModuleCompliance", "ObjectGroup")
