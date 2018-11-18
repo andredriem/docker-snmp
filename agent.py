@@ -189,20 +189,24 @@ class SNMPAgent(object):
         class ContaineListHashIdentifierStateInstance(MibScalarInstance):
           def readGet(self, name, val, *args):
             try:
+                docker_informations = loads(check_output(['curl','--unix-socket','/var/run/docker.sock', 'http://localhost/containers/json']))
                 return self.name, self.syntax.clone(docker_informations[name[-1] - 1]["Id"])
             except:
               MibScalarInstance.readGet(self, name, val, *args)
               
         class ContaineListNameStateInstance(MibScalarInstance):
           def readGet(self, name, val, *args):
+            docker_informations = loads(check_output(['curl','--unix-socket','/var/run/docker.sock', 'http://localhost/containers/json']))
             return self.name, self.syntax.clone(docker_informations[name[-1] - 1]["Image"])
             
         class ContaineListStatusStateInstance(MibScalarInstance):
           def readGet(self, name, val, *args):
+            docker_informations = loads(check_output(['curl','--unix-socket','/var/run/docker.sock', 'http://localhost/containers/json']))
             return self.name, self.syntax.clone(docker_informations[name[-1] - 1]["Status"])
 
         class ContaineListImageIDStateInstance(MibScalarInstance):
           def readGet(self, name, val, *args):
+            docker_informations = loads(check_output(['curl','--unix-socket','/var/run/docker.sock', 'http://localhost/containers/json']))
             return self.name, self.syntax.clone(docker_informations[name[-1] - 1]["ImageID"])
                       
         for i in range(len(docker_informations)):                
