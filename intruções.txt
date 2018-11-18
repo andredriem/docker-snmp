@@ -1,0 +1,8 @@
+- Instalar python2
+- Instalar pysnmp
+- Instalar Docker para MacOS
+- Instalar tools snmpget, snmpwalk, snmpset, snmptable
+- Colocar DOCKER-MIB.TXT no seu diretório padrão de mibs ex: /usr/share/snmp/mibs/DOCKER-MIB.txt 
+- Levantar alguns containers
+- Iniciar python agent.py com permisões de SU
+- Iniciar python manager.py e seguir as instruções
