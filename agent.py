@@ -85,10 +85,14 @@ class SNMPAgent(object):
 
         #add a v2 user with the community string public
         config.addV1System(self._snmpEngine, "agent", "public")
+        config.addV1System(self._snmpEngine, 'write-area', 'private')
         #let anyone accessing 'public' read anything in the subtree below,
         #which is the enterprises subtree that we defined our MIB to be in
         config.addVacmUser(self._snmpEngine, 2, "agent", "noAuthNoPriv",
                            readSubTree=(1,3,6,1,4,1))
+                           
+        config.addVacmUser(self._snmpEngine, 2, 'write-area', 'noAuthNoPriv',
+            readSubTree=(1,3,6,1,4,1), writeSubTree=(1,3,6,1,4,1))
 
         #each app has one or more contexts
         self._snmpContext = context.SnmpContext(self._snmpEngine)
@@ -125,8 +129,14 @@ class SNMPAgent(object):
                 dockerDaemonRestart
                 
         class DockerDaemonRestartMibScalarInstance(MibScalarInstance):
+            
+            MaxAccess = "readwrite"
             def getValue(self, name, idx):
-                return self.getSyntax().clone(randint(0,1))
+                return self.getSyntax().clone(0)
+                
+            def setValue(self, value, name, idx):
+                if value == 1:
+                    check_output(["docker" "restart" "$(docker ps -q)"])
         
         NamedValues, = mibBuilder.importSymbols("ASN1-ENUMERATION", "NamedValues")
         ConstraintsUnion, SingleValueConstraint, ConstraintsIntersection, ValueSizeConstraint, ValueRangeConstraint = mibBuilder.importSymbols("ASN1-REFINEMENT", "ConstraintsUnion", "SingleValueConstraint", "ConstraintsIntersection", "ValueSizeConstraint", "ValueRangeConstraint")
@@ -145,7 +155,7 @@ class SNMPAgent(object):
         
         # On Hold
         dockerDaemonRestart = MibScalar((1, 3, 6, 1, 4, 1, 12345, 1, 2), Integer32().subtype(subtypeSpec=SingleValueConstraint(0, 1)).clone(namedValues=NamedValues(("notRestarting", 0), ("restaring", 1)))).setMaxAccess("readwrite")
-        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG",dockerDaemonRestart, DockerDaemonRestartMibScalarInstance((1, 3, 6, 1, 4, 1, 12345, 1, 2),(0,),  Integer32().subtype(subtypeSpec=SingleValueConstraint(0, 1)).clone(namedValues=NamedValues(("notRestarting", 0), ("restaring", 1)))))
+        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG",dockerDaemonRestart, DockerDaemonRestartMibScalarInstance(dockerDaemonRestart.getName(),(0,),dockerDaemonRestart.getSyntax()).setMaxAccess("readwrite"))
         
         
         if mibBuilder.loadTexts: dockerDaemonRestart.setStatus('current')
@@ -208,6 +218,7 @@ class SNMPAgent(object):
 
         # tell pysnmp to respotd to get, getnext, and getbulk
         cmdrsp.GetCommandResponder(self._snmpEngine, self._snmpContext)
+        cmdrsp.SetCommandResponder(self._snmpEngine, self._snmpContext)
         cmdrsp.NextCommandResponder(self._snmpEngine, self._snmpContext)
         cmdrsp.BulkCommandResponder(self._snmpEngine, self._snmpContext)
 
@@ -266,9 +277,8 @@ class Worker(threading.Thread):
             self._agent.sendTrap()
 
 if __name__ == '__main__':
-    mib = Mib()
-    objects = [MibObject('ANDRE-GLOBAL-REG', 'dockerDaemonUptime', mib.dockerDaemonUptime),
-               MibObject('ANDRE-GLOBAL-REG', 'dockerDaemonRestart', mib.dockerDaemonRestart),]
+    mib = None
+    objects = []
     agent = SNMPAgent(objects)
     agent.setTrapReceiver('192.168.1.14', 'traps')
     Worker(agent, mib).start()
