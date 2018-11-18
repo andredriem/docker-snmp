@@ -131,13 +131,18 @@ class SNMPAgent(object):
             def getValue(self, name, idx):
                 out = check_output(['ps', 'aux'])
                 res = [line for line in  out.split('\n') if 'MacOS/Docker' in line][0].split()[1]
-                if res == []:
+                print res
+                if res == [] or res == '':
                     result = 0
                     return self.getSyntax().clone(result)
                     
                 out = check_output(['ps', '-o', 'etime=','-p',res])
+                print out
                 try:
-                    t=datetime.datetime.strptime(out,'%H:%M:%S\n')
+                    try:
+                        t=datetime.datetime.strptime(out,'%H:%M:%S\n')
+                    except:
+                        t=datetime.datetime.strptime(out,'%M:%S\n')
                 except:
                     result = 0
                     return self.getSyntax().clone(result)

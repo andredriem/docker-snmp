@@ -82,14 +82,14 @@
 			STATUS current
 			DESCRIPTION
 				"Description."
-			INDEX { containeListHashIdentifier, containeListUptime, containeListName, containeListStatus }
+			INDEX { containeListHashIdentifier, containeListNetworkId, containeListName, containeListStatus }
 			::= { containeListTable 1 }
 
 		ContaineListEntry ::=
 			SEQUENCE { 
 				containeListHashIdentifier
 					OCTET STRING,
-				containeListUptime
+				containeListNetworkId
 					OCTET STRING,
 				containeListName
 					OCTET STRING,
