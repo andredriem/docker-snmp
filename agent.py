@@ -38,24 +38,6 @@ class Mib(object):
         self._lock = threading.RLock()
         self._test_count = 0
 
-    def dockerDaemonUptime(self):
-        "Calls system monitor to figure out for how much time Docker process is running"
-        with self._lock:
-            out = check_output(['ps', 'aux'])
-            res = [line for line in  out.split('\n') if 'MacOS/Docker' in line][0].split()[1]
-            if res == []:
-                return 0
-            out = check_output(['ps', '-o', 'etime=','-p',res])
-            try:
-                t=datetime.datetime.strptime(out,'%H:%M:%S\n')
-            except:
-                return 0
-            return (((t.hour * 60) + t.minute) * 60 + t.second) * 100
-            
-    def dockerDaemonRestart(self):
-        return randint(0,1)
-        
-
 def createVariable(SuperClass, getValue, *args):
     """This is going to create a instance variable that we can export. 
     getValue is a function to call to retreive the value of the scalar
@@ -110,6 +92,41 @@ class SNMPAgent(object):
             'SNMPv2-SMI', 'MibScalar', 'MibScalarInstance'
         )
         
+        NamedValues, = mibBuilder.importSymbols("ASN1-ENUMERATION", "NamedValues")
+        ConstraintsUnion, SingleValueConstraint, ConstraintsIntersection, ValueSizeConstraint, ValueRangeConstraint = mibBuilder.importSymbols("ASN1-REFINEMENT", "ConstraintsUnion", "SingleValueConstraint", "ConstraintsIntersection", "ValueSizeConstraint", "ValueRangeConstraint")
+        NotificationGroup, ModuleCompliance, ObjectGroup = mibBuilder.importSymbols("SNMPv2-CONF", "NotificationGroup", "ModuleCompliance", "ObjectGroup")
+        Integer32, MibScalar, MibTable, MibTableRow, MibTableColumn, NotificationType, MibIdentifier, IpAddress, TimeTicks, Counter64, Unsigned32, enterprises, iso, Gauge32, ModuleIdentity, ObjectIdentity, Bits, Counter32 = mibBuilder.importSymbols("SNMPv2-SMI", "Integer32", "MibScalar", "MibTable", "MibTableRow", "MibTableColumn", "NotificationType", "MibIdentifier", "IpAddress", "TimeTicks", "Counter64", "Unsigned32", "enterprises", "iso", "Gauge32", "ModuleIdentity", "ObjectIdentity", "Bits", "Counter32")
+        DisplayString, TextualConvention = mibBuilder.importSymbols("SNMPv2-TC", "DisplayString", "TextualConvention")
+        dockerRoot = ObjectIdentity((1, 3, 6, 1, 4, 1, 12345))
+        if mibBuilder.loadTexts: dockerRoot.setStatus('current')
+        dockerDaemon = MibIdentifier((1, 3, 6, 1, 4, 1, 12345, 1))
+        dockerDaemonUptime = MibScalar((1, 3, 6, 1, 4, 1, 12345, 1, 1), TimeTicks()).setMaxAccess("readonly")
+        dockerDaemonRestart = MibScalar((1, 3, 6, 1, 4, 1, 12345, 1, 2), Integer32().subtype(subtypeSpec=SingleValueConstraint(0, 1)).clone(namedValues=NamedValues(("notRestarting", 0), ("restaring", 1)))).setMaxAccess("readwrite")
+        if mibBuilder.loadTexts: dockerDaemonRestart.setStatus('current')
+        dockerDaemonMandatoryImplementations = ObjectGroup((1, 3, 6, 1, 4, 1, 12345, 1, 3)).setObjects(("ANDRE-GLOBAL-REG", "dockerDaemonUptime"), ("ANDRE-GLOBAL-REG", "dockerDaemonRestart"))
+        if getattr(mibBuilder, 'version', (0, 0, 0)) > (4, 4, 0):
+            dockerDaemonMandatoryImplementations = dockerDaemonMandatoryImplementations.setStatus('current')
+        dockerContainers = MibIdentifier((1, 3, 6, 1, 4, 1, 12345, 2))
+        containeListTable = MibTable((1, 3, 6, 1, 4, 1, 12345, 2, 1), )
+        if mibBuilder.loadTexts: containeListTable.setStatus('current')
+        containeListEntry = MibTableRow((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1), ).setIndexNames((0, "ANDRE-GLOBAL-REG", "containeListHashIdentifier"), (0, "ANDRE-GLOBAL-REG", "containeListUptime"), (0, "ANDRE-GLOBAL-REG", "containeListName"), (0, "ANDRE-GLOBAL-REG", "containeListStatus"))
+        if mibBuilder.loadTexts: containeListEntry.setStatus('current')
+        containeListHashIdentifier = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 1), OctetString()).setMaxAccess("readonly")
+        if mibBuilder.loadTexts: containeListHashIdentifier.setStatus('current')
+        containeListImageID = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 2), OctetString()).setMaxAccess("readonly")
+        if mibBuilder.loadTexts: containeListUptime.setStatus('current')
+        containeListName = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 3), OctetString()).setMaxAccess("readonly")
+        if mibBuilder.loadTexts: containeListName.setStatus('current')
+        containeListStatus = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 4), OctetString()).setMaxAccess("readonly")
+        if mibBuilder.loadTexts: containeListStatus.setStatus('current')
+        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG", dockerContainers=dockerContainers, containeListName=containeListName, dockerRoot=dockerRoot, containeListEntry=containeListEntry, containeListImageID=containeListImageID, dockerDaemonUptime=dockerDaemonUptime, dockerDaemonRestart=dockerDaemonRestart, containeListStatus=containeListStatus, dockerDaemon=dockerDaemon, dockerDaemonMandatoryImplementations=dockerDaemonMandatoryImplementations, containeListHashIdentifier=containeListHashIdentifier, containeListTable=containeListTable)
+        
+        container_info = getDockerProcesses()
+        docker_informations = loads(check_output(['curl','--unix-socket','/var/run/docker.sock', 'http://localhost/containers/json']))
+        print docker_informations[0]
+        
+        
+        
         class DockerDaemonUpTimeMibScalarInstance(MibScalarInstance):
             def getValue(self, name, idx):
                 out = check_output(['ps', 'aux'])
@@ -144,48 +161,7 @@ class SNMPAgent(object):
                     return self.syntax.setValue(value)
                 else:
                     return self.syntax.clone(value)
-        NamedValues, = mibBuilder.importSymbols("ASN1-ENUMERATION", "NamedValues")
-        ConstraintsUnion, SingleValueConstraint, ConstraintsIntersection, ValueSizeConstraint, ValueRangeConstraint = mibBuilder.importSymbols("ASN1-REFINEMENT", "ConstraintsUnion", "SingleValueConstraint", "ConstraintsIntersection", "ValueSizeConstraint", "ValueRangeConstraint")
-        NotificationGroup, ModuleCompliance, ObjectGroup = mibBuilder.importSymbols("SNMPv2-CONF", "NotificationGroup", "ModuleCompliance", "ObjectGroup")
-        Integer32, MibScalar, MibTable, MibTableRow, MibTableColumn, NotificationType, MibIdentifier, IpAddress, TimeTicks, Counter64, Unsigned32, enterprises, iso, Gauge32, ModuleIdentity, ObjectIdentity, Bits, Counter32 = mibBuilder.importSymbols("SNMPv2-SMI", "Integer32", "MibScalar", "MibTable", "MibTableRow", "MibTableColumn", "NotificationType", "MibIdentifier", "IpAddress", "TimeTicks", "Counter64", "Unsigned32", "enterprises", "iso", "Gauge32", "ModuleIdentity", "ObjectIdentity", "Bits", "Counter32")
-        DisplayString, TextualConvention = mibBuilder.importSymbols("SNMPv2-TC", "DisplayString", "TextualConvention")
-        dockerRoot = ObjectIdentity((1, 3, 6, 1, 4, 1, 12345))
-        if mibBuilder.loadTexts: dockerRoot.setStatus('current')
-        dockerDaemon = MibIdentifier((1, 3, 6, 1, 4, 1, 12345, 1))
-        
-        # Done
-        dockerDaemonUptime = MibScalar((1, 3, 6, 1, 4, 1, 12345, 1, 1), TimeTicks()).setMaxAccess("readonly")
-        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG",dockerDaemonUptime, DockerDaemonUpTimeMibScalarInstance((1, 3, 6, 1, 4, 1, 12345, 1, 1),(0,),TimeTicks()))
-        
-        
-        
-        # On Hold
-        dockerDaemonRestart = MibScalar((1, 3, 6, 1, 4, 1, 12345, 1, 2), Integer32().subtype(subtypeSpec=SingleValueConstraint(0, 1)).clone(namedValues=NamedValues(("notRestarting", 0), ("restaring", 1)))).setMaxAccess("readwrite")
-        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG",dockerDaemonRestart, DockerDaemonRestartMibScalarInstance(dockerDaemonRestart.getName(),(0,),dockerDaemonRestart.getSyntax()).setMaxAccess("readwrite"))
-        
-        
-        if mibBuilder.loadTexts: dockerDaemonRestart.setStatus('current')
-        dockerDaemonMandatoryImplementations = ObjectGroup((1, 3, 6, 1, 4, 1, 12345, 1, 3)).setObjects(("ANDRE-GLOBAL-REG", "dockerDaemonUptime"), ("ANDRE-GLOBAL-REG", "dockerDaemonRestart"))
-        if getattr(mibBuilder, 'version', (0, 0, 0)) > (4, 4, 0):
-            dockerDaemonMandatoryImplementations = dockerDaemonMandatoryImplementations.setStatus('current')
-        dockerContainers = MibIdentifier((1, 3, 6, 1, 4, 1, 12345, 2))
-        containeListTable = MibTable((1, 3, 6, 1, 4, 1, 12345, 2, 1), )
-        if mibBuilder.loadTexts: containeListTable.setStatus('current')
-        containeListEntry = MibTableRow((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1), ).setIndexNames((0, "ANDRE-GLOBAL-REG", "containeListHashIdentifier"), (0, "ANDRE-GLOBAL-REG", "containeListUptime"), (0, "ANDRE-GLOBAL-REG", "containeListName"), (0, "ANDRE-GLOBAL-REG", "containeListStatus"))
-        if mibBuilder.loadTexts: containeListEntry.setStatus('current')
-        containeListHashIdentifier = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 1), OctetString()).setMaxAccess("readonly")
-        if mibBuilder.loadTexts: containeListHashIdentifier.setStatus('current')
-        containeListImageID = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 2), OctetString()).setMaxAccess("readonly")
-        if mibBuilder.loadTexts: containeListUptime.setStatus('current')
-        containeListName = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 3), OctetString()).setMaxAccess("readonly")
-        if mibBuilder.loadTexts: containeListName.setStatus('current')
-        containeListStatus = MibTableColumn((1, 3, 6, 1, 4, 1, 12345, 2, 1, 1, 4), OctetString()).setMaxAccess("readonly")
-        if mibBuilder.loadTexts: containeListStatus.setStatus('current')
-        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG", dockerContainers=dockerContainers, containeListName=containeListName, dockerRoot=dockerRoot, containeListEntry=containeListEntry, containeListImageID=containeListImageID, dockerDaemonUptime=dockerDaemonUptime, dockerDaemonRestart=dockerDaemonRestart, containeListStatus=containeListStatus, dockerDaemon=dockerDaemon, dockerDaemonMandatoryImplementations=dockerDaemonMandatoryImplementations, containeListHashIdentifier=containeListHashIdentifier, containeListTable=containeListTable)
-        
-        container_info = getDockerProcesses()
-        docker_informations = loads(check_output(['curl','--unix-socket','/var/run/docker.sock', 'http://localhost/containers/json']))
-        print docker_informations[0]
+                    
         class ContaineListHashIdentifierStateInstance(MibScalarInstance):
           def readGet(self, name, val, *args):
             try:
@@ -208,7 +184,10 @@ class SNMPAgent(object):
           def readGet(self, name, val, *args):
             docker_informations = loads(check_output(['curl','--unix-socket','/var/run/docker.sock', 'http://localhost/containers/json']))
             return self.name, self.syntax.clone(docker_informations[name[-1] - 1]["ImageID"])
-                      
+                
+                
+        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG",dockerDaemonUptime, DockerDaemonUpTimeMibScalarInstance((1, 3, 6, 1, 4, 1, 12345, 1, 1),(0,),TimeTicks()))
+        mibBuilder.exportSymbols("ANDRE-GLOBAL-REG",dockerDaemonRestart, DockerDaemonRestartMibScalarInstance(dockerDaemonRestart.getName(),(0,),dockerDaemonRestart.getSyntax()).setMaxAccess("readwrite"))
         for i in range(len(docker_informations)):                
             mibBuilder.exportSymbols("ANDRE-GLOBAL-REG",
                 ContaineListNameStateInstance(containeListName.getName(), (i+1,), containeListName.getSyntax()),
